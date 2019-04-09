@@ -14,23 +14,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.zouzias.spark.lucenerdd.aggregate
+package org.zouzias.spark.lucenerdd.store
 
-import com.twitter.algebird.MapMonoid
-import org.zouzias.spark.lucenerdd.models.SparkFacetResult
+import org.apache.lucene.analysis.Analyzer
+import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyWriter
+import org.apache.lucene.index.IndexWriterConfig.OpenMode
+import org.apache.lucene.index.{IndexWriter, IndexWriterConfig}
+import org.zouzias.spark.lucenerdd.analyzers.AnalyzerConfigurable
 
 /**
- * Monoid used to aggregate faceted results [[SparkFacetResult]]
- * from the executors to the driver
+ * Index writer
  */
-object SparkFacetResultMonoid extends Serializable {
+trait IndexWritable extends IndexStorable
+  with AnalyzerConfigurable {
 
-  private lazy val facetMonoid = new MapMonoid[String, Long]()
+  protected def indexAnalyzer(): Analyzer
 
-  def zero(facetName: String): SparkFacetResult = SparkFacetResult(facetName, facetMonoid.zero)
+  protected lazy val indexWriter = new IndexWriter(IndexDir,
+    new IndexWriterConfig(indexAnalyzer())
+      .setOpenMode(OpenMode.CREATE))
 
-  def plus(l: SparkFacetResult, r: SparkFacetResult): SparkFacetResult = {
-    require(l.facetName == r.facetName) // Check if summing same facets
-    SparkFacetResult(l.facetName, facetMonoid.plus(l.facets, r.facets))
+  protected def closeAllWriters(): Unit = {
+    indexWriter.commit()
+    indexWriter.close()
   }
 }
